@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Noteculator</title>
+  <style>
+    body {
+      font-family: Times New Roman, sans-serif;
+      background: #f4f4f9;
+      display: flex;
+      justify-content: center;
+      padding: 20px;
+    }
+    .app {
+      max-width: 400px;
+      width: 100%;
+      background: #9acd32;
+      padding: 20px;
+      border-radius: 16px;
+      box-shadow: 0 6px 14px rgba(0,0,0,0.1);
+    }
+    h2 {
+      text-align: center;
+    }
+    .display {
+      width: 100%;
+      padding: 12px;
+      font-size: 1.5rem;
+      text-align: right;
+      border: 2px solid #ccc;
+      border-radius: 8px;
+      margin-bottom: 10px;
+    }
+    .buttons {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+      margin-bottom: 15px;
+    }
+    button {
+      padding: 15px;
+      font-size: 1.2rem;
+      border: none;
+      border-radius: 8px;
+      background: #4a90e2;
+      color: white;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    button:hover {
+      background: #357ab7;
+    }
+    .note-input, .search-input {
+      width: 100%;
+      padding: 10px;
+      margin: 8px 0;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+      font-size: 1rem;
+    }
+    .history {
+      margin-top: 20px;
+    }
+    .entry {
+      background: #eee;
+      padding: 10px;
+      border-radius: 8px;
+      margin-bottom: 10px;
+      position: relative;
+    }
+    .linked {
+      margin-left: 20px;
+      border-left: 2px solid #ccc;
+      padding-left: 10px;
+    }
+    .delete-btn {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      background: #d9534f;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      padding: 4px 8px;
+      font-size: 0.9rem;
+      cursor: pointer;
+    }
+    .delete-btn:hover {
+      background: #c9302c;
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <h2>🧮 Noteculator</h2>
+    <input id="calcDisplay" class="display" type="text" readonly placeholder="0">
+
+    <div class="buttons">
+      <button onclick="press('7')">7</button>
+      <button onclick="press('8')">8</button>
+      <button onclick="press('9')">9</button>
+      <button onclick="press('/')">÷</button>
+
+      <button onclick="press('4')">4</button>
+      <button onclick="press('5')">5</button>
+      <button onclick="press('6')">6</button>
+      <button onclick="press('*')">×</button>
+
+      <button onclick="press('1')">1</button>
+      <button onclick="press('2')">2</button>
+      <button onclick="press('3')">3</button>
+      <button onclick="press('-')">−</button>
+
+      <button onclick="press('0')">0</button>
+      <button onclick="press('.')">.</button>
+      <button onclick="calculate()">=</button>
+      <button onclick="press('+')">+</button>
+
+      <button onclick="clearDisplay()" style="grid-column: span 4; background:#d9534f;">C</button>
+    </div>
+
+    <input id="noteInput" class="note-input" type="text" placeholder="Add a note (e.g., Lunch with Sarah)">
+    <button onclick="saveCalculation()">💾 Save Calculation</button>
+
+    <input id="searchInput" class="search-input" type="text" placeholder="🔍 Search history..." oninput="searchHistory()">
+
+    <div class="history" id="history"></div>
+  </div>
+
+  <script>
+    let history = [];
+    let idCounter = 0;
+    let lastExpr = "";
+    let lastResult = "";
+
+    // Load history from localStorage
+    window.onload = function() {
+      const saved = localStorage.getItem("calcHistory");
+      if (saved) {
+        history = JSON.parse(saved);
+        idCounter = history.length ? Math.max(...history.map(h => h.id)) + 1 : 0;
+        renderHistory();
+      }
+    };
+
+    function press(val) {
+      document.getElementById("calcDisplay").value += val;
+    }
+
+    function clearDisplay() {
+      document.getElementById("calcDisplay").value = "";
+    }
+
+    function calculate() {
+      try {
+        const expr = document.getElementById("calcDisplay").value;
+        const result = eval(expr); // replace with math.js for safety if needed
+        document.getElementById("calcDisplay").value = result;
+        lastExpr = expr;
+        lastResult = result;
+      } catch {
+        alert("Invalid calculation");
+      }
+    }
+
+    function saveCalculation(parentId = null) {
+      const expr = lastExpr || document.getElementById("calcDisplay").value.trim();
+      const note = document.getElementById("noteInput").value.trim();
+      if (!expr) return alert("Do a calculation first");
+
+      const entry = {
+        id: idCounter++,
+        expr,
+        result: lastResult || expr,
+        note,
+        parentId
+      };
+      history.push(entry);
+      saveToLocal();
+      renderHistory();
+      document.getElementById("noteInput").value = "";
+    }
+
+    function renderHistory(filter = "") {
+      const container = document.getElementById("history");
+      container.innerHTML = "";
+      history
+        .filter(h => h.expr.includes(filter) || h.note.toLowerCase().includes(filter.toLowerCase()))
+        .forEach(h => {
+          const div = document.createElement("div");
+          div.className = "entry" + (h.parentId !== null ? " linked" : "");
+          div.innerHTML = `
+            <button class="delete-btn" onclick="deleteEntry(${h.id})">✖</button>
+            <strong>${h.expr} = ${h.result}</strong><br>
+            <em>${h.note || "No note"}</em><br>
+            <button onclick="linkTo(${h.id})">➕ Link new calc</button>
+          `;
+          container.appendChild(div);
+        });
+    }
+
+    function searchHistory() {
+      const q = document.getElementById("searchInput").value.trim();
+      renderHistory(q);
+    }
+
+    function linkTo(parentId) {
+      const parentResult = history.find(h => h.id === parentId).result;
+      const expr = prompt("Enter new calculation using previous result (" +
+        parentResult + " available as 'x'):");
+      if (expr) {
+        const exprWithX = expr.replace(/x/g, parentResult);
+        document.getElementById("calcDisplay").value = exprWithX;
+        document.getElementById("noteInput").value = "Linked to #" + parentId;
+      }
+    }
+
+    function deleteEntry(id) {
+      history = history.filter(h => h.id !== id);
+      saveToLocal();
+      renderHistory();
+    }
+
+    function saveToLocal() {
+      localStorage.setItem("calcHistory", JSON.stringify(history));
+    }
+  </script>
+</body>
+</html>
+
